@@ -10,7 +10,6 @@
         android:layout_height="match_parent"
         style="@style/ActivityStyle"
 
-
         >
 
         <android.support.constraint.ConstraintLayout
