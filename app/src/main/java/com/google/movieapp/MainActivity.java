@@ -1,9 +1,12 @@
 package com.google.movieapp;
 
+import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Parcelable;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.Menu;
@@ -14,6 +17,11 @@ import android.widget.AdapterView;
 import android.widget.GridView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+
+import com.google.movieapp.ArrayAdapters.MovieAdapter;
+import com.google.movieapp.Data.GetMoviesDataFromJson;
+import com.google.movieapp.Helper.MoviesContract;
+import com.google.movieapp.Models.Movies;
 
 import org.json.JSONException;
 
@@ -26,35 +34,65 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
+import static android.media.tv.TvContract.Programs.Genres.MOVIES;
+import static com.google.movieapp.Data.GetMoviesDataFromCursor.getFavoriteMoviesDataFromCursor;
+
 public class MainActivity extends AppCompatActivity {
     private static final String POPULAR = "popular";
     private static final String Top_RATED = "top_rated";
+    private static final String FAVORITE = "favorite";
+    private static final String MOVIE = "movie";
+    private static final String SORT_BY = "SORT_BY";
+    private static final String SETTING = "setting";
+
 
 
     private String sortBy = POPULAR;
 
 
     private GridView mGridView;
-    private com.google.movieapp.MovieAdapter mMovieAdapter;
+    private MovieAdapter mMovieAdapter;
     private ProgressBar mProgressBar;
     private TextView errorTextView;
 
 
 
-    private List<Movie> mMovies = null;
+
+
+    private List<Movies> mMovies ;
+
+    private static final String[] MOVIE_COLUMNS = {
+            MoviesContract.MoviesEntry._ID,
+            MoviesContract.MoviesEntry.COLUMN_MOVIE_ID,
+            MoviesContract.MoviesEntry.COLUMN_TITLE,
+            MoviesContract.MoviesEntry.COLUMN_POSTER_IMAGE,
+            MoviesContract.MoviesEntry.COLUMN_BACKDROP_IMAGE,
+            MoviesContract.MoviesEntry.COLUMN_OVERVIEW,
+            MoviesContract.MoviesEntry.COLUMN_VOTE_AVERAGE,
+            MoviesContract.MoviesEntry.COLUMN_RELEASE_DATE
+    };
+
+    public static final int COL_MOVIE_ID = 1;
+    public static final int COL_TITLE = 2;
+    public static final int COL_POSTER_IMAGE= 3;
+    public static final int COL_BACKDROP_IMAGE = 4;
+    public static final int COL_OVERVIEW = 5;
+    public static final int COL_VOTE_AVERAGE = 6;
+    public static final int COL_RELEASE_DATE= 7;
+
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
-
-
 
         errorTextView = (TextView) findViewById(R.id.error_message);
 
 
         mGridView = (GridView) findViewById(R.id.gridview_movies);
 
-        mMovieAdapter = new MovieAdapter(getApplicationContext());
+        mMovieAdapter = new MovieAdapter(this);
 
         mGridView.setAdapter(mMovieAdapter);
 
@@ -63,7 +101,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                Movie movie = mMovieAdapter.getItem(position);
+                Movies movie = mMovieAdapter.getItem(position);
                 Intent intent = new Intent(getApplicationContext(), DetailActivity.class)
                         .putExtra("detail_movie", movie);
                 startActivity(intent);
@@ -71,23 +109,41 @@ public class MainActivity extends AppCompatActivity {
         });
 
         if (savedInstanceState != null) {
+            if (savedInstanceState.containsKey(SETTING)) {
+                sortBy = savedInstanceState.getString(SETTING);
+            }
 
-            if (savedInstanceState.containsKey("movies")) {
-                mMovies = savedInstanceState.getParcelableArrayList("movies");
-                for (Movie movie : mMovies) {
-                    mMovieAdapter.add(movie);
-                }
-            } else {
+            if (savedInstanceState.containsKey(MOVIES)) {
+                mMovies = savedInstanceState.getParcelableArrayList(MOVIES);
+                showDataView(mMovies);
+
+            }  else {
                 updateMovies(sortBy);
             }
         } else {
             updateMovies(sortBy);
         }
     }
+    @Override
+    public void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        if (mMovies != null && !mMovies.isEmpty()) {
+            outState.putParcelableArrayList(MOVIE, (ArrayList<? extends Parcelable>) mMovies);
+        }
+        outState.putString(SORT_BY, sortBy);
+
+        if (!sortBy.contentEquals(POPULAR)) {
+            outState.putString(SORT_BY, sortBy);
+        }
+    }
 
     private void updateMovies(String param) {
-        FetchMoviesTask moviesTask = new FetchMoviesTask();
-        moviesTask.execute(param);
+
+        if (!param.contentEquals(FAVORITE)) {
+            new FetchMoviesTask().execute(param);
+        } else {
+            new FetchFavoriteMoviesTask(this).execute();
+        }
     }
 
     @Override
@@ -117,15 +173,37 @@ public class MainActivity extends AppCompatActivity {
                 sortBy = Top_RATED;
                 updateMovies(sortBy);
                 return true;
+            case R.id.sort_by_favorite:
+                if (item.isChecked()) {
+                    item.setChecked(false);
+                } else {
+                    item.setChecked(true);
+                }
+                sortBy = FAVORITE;
+                updateMovies(sortBy);
+                return true;
             default:
                 return super.onOptionsItemSelected(item);
         }
+    }
 
+    public void showDataView(List<Movies> movies) {
+
+        mMovieAdapter.clear();
+        for (Movies movie : movies) {
+            mMovieAdapter.add(movie);
+        }
+        errorTextView.setVisibility(View.INVISIBLE);
+    }
+    public void showErrorMessage() {
+        mMovieAdapter.clear();
+        errorTextView.setVisibility(View.VISIBLE);
 
     }
 
-    public class FetchMoviesTask extends AsyncTask<String, Void, List<Movie>> {
+    public class FetchMoviesTask extends AsyncTask<String, Void, List<Movies>> {
         private final String LOG_TAG = FetchMoviesTask.class.getSimpleName();
+
 
 
         @Override
@@ -135,7 +213,7 @@ public class MainActivity extends AppCompatActivity {
             super.onPreExecute();
         }
         @Override
-        protected List<Movie> doInBackground(String... params) {
+        protected List<Movies> doInBackground(String... params) {
             if (params.length == 0) {
                 return null;
             }
@@ -212,22 +290,8 @@ public class MainActivity extends AppCompatActivity {
 
         }
 
-        private void showDataView(List<Movie> movies) {
-
-            mMovieAdapter.clear();
-            for (Movie movie : movies) {
-                mMovieAdapter.add(movie);
-            }
-            errorTextView.setVisibility(View.INVISIBLE);
-        }
-        private void showErrorMessage() {
-            mMovieAdapter.clear();
-            errorTextView.setVisibility(View.VISIBLE);
-
-        }
-
         @Override
-        protected void onPostExecute(List<Movie> movies) {
+        protected void onPostExecute(List<Movies> movies) {
             mProgressBar.setVisibility(View.INVISIBLE);
             if (movies != null) {
                 if (mMovieAdapter != null) {
@@ -241,5 +305,38 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+    public class FetchFavoriteMoviesTask extends AsyncTask<Void, Void, List<Movies>> {
 
+        Context mContext;
+
+        public FetchFavoriteMoviesTask(Context context) {
+            mContext = context;
+        }
+
+        @Override
+        protected List<Movies> doInBackground(Void... params) {
+            Cursor cursor = mContext.getContentResolver().query(
+                    MoviesContract.MoviesEntry.CONTENT_URI,
+                    MOVIE_COLUMNS,
+                    null,
+                    null,
+                    null
+            );
+            return getFavoriteMoviesDataFromCursor(cursor);
+        }
+
+        @Override
+        protected void onPostExecute(List<Movies> movies) {
+            if (movies != null) {
+                if (mMovieAdapter != null) {
+                   showDataView(movies);
+                }
+                mMovies = new ArrayList<>();
+                mMovies.addAll(movies);
+            }
+            else {
+                showErrorMessage();
+            }
+        }
+    }
 }

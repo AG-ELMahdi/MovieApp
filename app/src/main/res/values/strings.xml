@@ -4,9 +4,17 @@
     <string name="activity_detail">Movie Detail</string>
     <string name="release_date">Release Date</string>
     <string name="vote_average">Vote Average</string>
-    <string name="error_message">Oops Failure ,Please try again !</string>
+    <string name="error_message" translatable="true">Oops Failure ,Please try again !</string>
     <string name="action_most_popular">Most Popular</string>
     <string name="action_top_rated">Top Rated</string>
     <string name="sort_by">Sort By</string>
+    <string name="action_favorite">Favorite</string>
+    <string name="movie_unfavorite" translatable="true">Movie Un-Favorite ! </string>
+    <string name="favorites" translatable="true">Successfully Added to Favorite !</string>
+    <string name="reviews" translatable="true">Review</string>
+    <string name="trailers" translatable="true">Trailer</string>
+    <string name="author">Author</string>
+    <string name="movie_image">Movie Image</string>
+    <string name="details_image">Details image</string>
 
 </resources>

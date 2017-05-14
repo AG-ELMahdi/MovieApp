@@ -12,7 +12,8 @@
         android:layout_height="match_parent"
         android:numColumns="auto_fit"
         android:drawSelectorOnTop="true"
-        android:adjustViewBounds="true"/>
+        android:adjustViewBounds="true"
+        android:background="@drawable/grid_border"/>
     <TextView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
